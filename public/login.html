@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Job Portal</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <a href="/" class="logo">JobPortal</a>
+            <nav>
+                <a href="/register.html">Don't have an account? Register</a>
+            </nav>
+        </div>
+    </nav>
+
+    <div class="container" style="max-width: 500px; padding: 80px 24px;">
+        <div class="glass-card">
+            <h1>Welcome Back</h1>
+            <p style="margin-bottom: 32px;">Login to your account to continue</p>
+
+            <form id="loginForm">
+                <div class="input-group">
+                    <label>Email Address</label>
+                    <input type="email" id="email" placeholder="you@example.com" required>
+                </div>
+
+                <div class="input-group">
+                    <label>Password</label>
+                    <input type="password" id="password" placeholder="Enter your password" required>
+                </div>
+
+                <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 8px;" id="submitBtn">
+                    Login
+                </button>
+            </form>
+
+            <p style="text-align: center; margin-top: 24px; color: var(--text-secondary);">
+                Don't have an account? <a href="/register.html"
+                    style="color: var(--primary); text-decoration: none;">Register here</a>
+            </p>
+        </div>
+    </div>
+
+    <script src="/js/api.js"></script>
+    <script src="/js/utils.js"></script>
+    <script>
+        if (getToken() && getUser()) {
+            const user = getUser();
+            if (user.role === 'job_seeker') {
+                window.location.href = '/jobseeker-dashboard.html';
+            } else if (user.role === 'admin') {
+                window.location.href = '/admin-dashboard.html';
+            } else {
+                window.location.href = '/employer-dashboard.html';
+            }
+        }
+
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const submitBtn = document.getElementById('submitBtn');
+
+            if (!validateEmail(email)) {
+                showNotification('Please enter a valid email', 'error');
+                return;
+            }
+
+            const originalText = submitBtn.innerHTML;
+            showLoading(submitBtn);
+
+            try {
+                const response = await authAPI.login({ email, password });
+
+                setToken(response.token);
+                setUser(response.user);
+
+                showNotification('Login successful!', 'success');
+
+                setTimeout(() => {
+                    if (response.user.role === 'job_seeker') {
+                        window.location.href = '/jobseeker-dashboard.html';
+                    } else if (response.user.role === 'admin') {
+                        window.location.href = '/admin-dashboard.html';
+                    } else {
+                        window.location.href = '/employer-dashboard.html';
+                    }
+                }, 1000);
+            } catch (error) {
+                hideLoading(submitBtn, originalText);
+                showNotification(error.message || 'Login failed', 'error');
+            }
+        });
+    </script>
+</body>
+
+</html>

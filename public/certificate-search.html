@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verify Certificate</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        .search-box {
+            max-width: 600px;
+            margin: 50px auto;
+            text-align: center;
+        }
+
+        .cert-result {
+            display: none;
+            margin-top: 30px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background: #fff;
+            text-align: left;
+        }
+
+        .download-btn {
+            display: inline-block;
+            margin-top: 15px;
+            padding: 10px 20px;
+            background: #28a745;
+            color: #fff;
+            text-decoration: none;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+
+<body>
+    <nav class="navbar">
+        <div class="logo">Job & Cert Portal</div>
+        <div class="nav-links">
+            <a href="index.html">Home</a>
+            <a href="login.html">Login</a>
+            <a href="register.html">Register</a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="search-box">
+            <h1>Certificate Verification</h1>
+            <p>Enter your unique Certificate ID to view and download your certificate.</p>
+
+            <form id="searchForm">
+                <input type="text" id="certId" placeholder="Enter Certificate ID" required
+                    style="padding: 10px; width: 70%;">
+                <button type="submit" class="btn btn-primary">Search</button>
+            </form>
+            <div id="message" style="margin-top: 10px;"></div>
+        </div>
+
+        <div id="result" class="cert-result">
+            <h2>Certificate Details</h2>
+            <p><strong>Student Name:</strong> <span id="sName"></span></p>
+            <p><strong>Course:</strong> <span id="cName"></span></p>
+            <p><strong>Grade:</strong> <span id="grade"></span></p>
+            <p><strong>Issued On:</strong> <span id="date"></span></p>
+
+            <a href="#" id="downloadLink" class="download-btn" target="_blank">
+                <i class="fas fa-download"></i> Download PDF
+            </a>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('searchForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('certId').value.trim();
+            const messageDiv = document.getElementById('message');
+            const resultDiv = document.getElementById('result');
+
+            messageDiv.textContent = 'Searching...';
+            messageDiv.style.color = '#666';
+            resultDiv.style.display = 'none';
+
+            try {
+                const res = await fetch(`/api/certificates/search?id=${id}`);
+                const data = await res.json();
+
+                if (data.success) {
+                    messageDiv.textContent = '';
+
+                    document.getElementById('sName').textContent = data.data.studentName;
+                    document.getElementById('cName').textContent = data.data.courseName;
+                    document.getElementById('grade').textContent = data.data.grade;
+                    document.getElementById('date').textContent = new Date(data.data.issueDate).toLocaleDateString();
+
+                    document.getElementById('downloadLink').href = `/api/certificates/download/${data.data.certificateID}`;
+
+                    resultDiv.style.display = 'block';
+                } else {
+                    messageDiv.textContent = data.message || 'Certificate not found';
+                    messageDiv.style.color = 'red';
+                }
+            } catch (err) {
+                console.error(err);
+                messageDiv.textContent = 'An error occurred';
+                messageDiv.style.color = 'red';
+            }
+        });
+    </script>
+</body>
+
+</html>

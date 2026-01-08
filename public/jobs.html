@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Browse Jobs - Job Portal</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <a href="/" class="logo">JobPortal</a>
+            <nav id="navLinks">
+                <a href="/jobs.html">Browse Jobs</a>
+                <a href="/login.html">Login</a>
+            </nav>
+        </div>
+    </nav>
+
+    <div class="container" style="padding: 48px 24px;">
+        <h1>Find Your Next Opportunity</h1>
+
+        <div class="filter-bar">
+            <div class="filters">
+                <div class="input-group" style="margin-bottom: 0;">
+                    <input type="text" id="keyword" placeholder="Search by keyword...">
+                </div>
+                <div class="input-group" style="margin-bottom: 0;">
+                    <select id="jobType">
+                        <option value="">All Job Types</option>
+                        <option value="full-time">Full Time</option>
+                        <option value="part-time">Part Time</option>
+                        <option value="contract">Contract</option>
+                        <option value="internship">Internship</option>
+                        <option value="temporary">Temporary</option>
+                    </select>
+                </div>
+                <div class="input-group" style="margin-bottom: 0;">
+                    <input type="text" id="city" placeholder="City">
+                </div>
+                <button class="btn btn-primary" onclick="searchJobs()">Search</button>
+            </div>
+        </div>
+
+        <div id="jobsContainer" class="grid grid-2">
+            <div style="text-align: center; padding: 48px; color: var(--text-muted);">
+                <span class="loading"></span>
+                <p style="margin-top: 16px;">Loading jobs...</p>
+            </div>
+        </div>
+
+        <div id="pagination" style="display: flex; justify-content: center; gap: 12px; margin-top: 32px;"></div>
+    </div>
+
+    <div id="applyModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Apply for Job</h2>
+                <button class="close-modal">&times;</button>
+            </div>
+            <form id="applyForm">
+                <input type="hidden" id="applyJobId">
+                <div class="input-group">
+                    <label>Cover Letter (Optional)</label>
+                    <textarea id="coverLetter" placeholder="Tell the employer why you're a great fit..."></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width: 100%;" id="applyBtn">Submit
+                    Application</button>
+            </form>
+        </div>
+    </div>
+
+    <script src="/js/api.js"></script>
+    <script src="/js/utils.js"></script>
+    <script>
+        const user = getUser();
+        if (user) {
+            const navLinks = document.getElementById('navLinks');
+            if (user.role === 'job_seeker') {
+                navLinks.innerHTML = `
+          <a href="/jobseeker-dashboard.html">Dashboard</a>
+          <a href="/jobs.html">Browse Jobs</a>
+          <a href="/applications.html">My Applications</a>
+          <a href="#" onclick="logout()" style="color: var(--danger);">Logout</a>
+        `;
+            } else {
+                navLinks.innerHTML = `
+          <a href="/employer-dashboard.html">Dashboard</a>
+          <a href="/create-job.html">Post a Job</a>
+          <a href="#" onclick="logout()" style="color: var(--danger);">Logout</a>
+        `;
+            }
+        }
+
+        let currentPage = 1;
+
+        async function searchJobs(page = 1) {
+            const keyword = document.getElementById('keyword').value;
+            const jobType = document.getElementById('jobType').value;
+            const city = document.getElementById('city').value;
+
+            const params = { page, limit: 10 };
+            if (keyword) params.keyword = keyword;
+            if (jobType) params.jobType = jobType;
+            if (city) params.city = city;
+
+            try {
+                const response = await jobAPI.getAllJobs(params);
+                const jobs = response.jobs || [];
+                const container = document.getElementById('jobsContainer');
+
+                if (jobs.length === 0) {
+                    container.innerHTML = `
+            <div style="grid-column: 1 / -1; text-align: center; padding: 48px; color: var(--text-muted);">
+              <p style="font-size: 18px;">No jobs found matching your criteria</p>
+            </div>
+          `;
+                } else {
+                    container.innerHTML = jobs.map(job => `
+            <div class="card">
+              <h3 style="margin-bottom: 8px;">${job.title}</h3>
+              <p style="color: var(--text-primary); margin-bottom: 8px; font-weight: 600;">${job.companyName}</p>
+              <p class="text-muted" style="margin-bottom: 12px;">${job.location.city}, ${job.location.country} • ${getJobTypeLabel(job.jobType)}</p>
+              <p style="margin-bottom: 16px;">${truncateText(job.description, 150)}</p>
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span class="job-card-salary">${formatSalary(job.salaryRange.min, job.salaryRange.max)}</span>
+                <div style="display: flex; gap: 8px;">
+                  <a href="/job-details.html?id=${job._id}" class="btn btn-outline" style="padding: 8px 16px;">View Details</a>
+                  ${user && user.role === 'job_seeker' ? `<button class="btn btn-primary" style="padding: 8px 16px;" onclick="openApplyModal('${job._id}')">Apply Now</button>` : ''}
+                </div>
+              </div>
+            </div>
+          `).join('');
+                }
+
+                const pagination = document.getElementById('pagination');
+                if (response.totalPages > 1) {
+                    let paginationHTML = '';
+                    for (let i = 1; i <= response.totalPages; i++) {
+                        paginationHTML += `<button class="btn ${i === page ? 'btn-primary' : 'btn-outline'}" onclick="searchJobs(${i})">${i}</button>`;
+                    }
+                    pagination.innerHTML = paginationHTML;
+                } else {
+                    pagination.innerHTML = '';
+                }
+
+                currentPage = page;
+            } catch (error) {
+                showNotification('Failed to load jobs', 'error');
+                console.error(error);
+            }
+        }
+
+        function openApplyModal(jobId) {
+            document.getElementById('applyJobId').value = jobId;
+            document.getElementById('coverLetter').value = '';
+            openModal('applyModal');
+        }
+
+        document.getElementById('applyForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const jobId = document.getElementById('applyJobId').value;
+            const coverLetter = document.getElementById('coverLetter').value;
+            const applyBtn = document.getElementById('applyBtn');
+            const originalText = applyBtn.innerHTML;
+
+            showLoading(applyBtn);
+
+            try {
+                await applicationAPI.apply({ jobId, coverLetter });
+                showNotification('Application submitted successfully!', 'success');
+                closeModal('applyModal');
+                hideLoading(applyBtn, originalText);
+            } catch (error) {
+                hideLoading(applyBtn, originalText);
+                showNotification(error.message || 'Failed to submit application', 'error');
+            }
+        });
+
+        searchJobs();
+    </script>
+</body>
+
+</html>

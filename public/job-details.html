@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Job Details - Job Portal</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <a href="/" class="logo">JobPortal</a>
+            <nav id="navLinks">
+                <a href="/jobs.html">Browse Jobs</a>
+                <a href="/login.html">Login</a>
+            </nav>
+        </div>
+    </nav>
+
+    <div class="container" style="padding: 48px 24px; max-width: 900px;">
+        <div id="jobDetails">
+            <div style="text-align: center; padding: 48px; color: var(--text-muted);">
+                <span class="loading"></span>
+                <p style="margin-top: 16px;">Loading job details...</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="applyModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Apply for Job</h2>
+                <button class="close-modal">&times;</button>
+            </div>
+            <form id="applyForm">
+                <div class="input-group">
+                    <label>Cover Letter (Optional)</label>
+                    <textarea id="coverLetter" placeholder="Tell the employer why you're a great fit..."></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width: 100%;" id="applyBtn">Submit
+                    Application</button>
+            </form>
+        </div>
+    </div>
+
+    <script src="/js/api.js"></script>
+    <script src="/js/utils.js"></script>
+    <script>
+        const user = getUser();
+        const urlParams = new URLSearchParams(window.location.search);
+        const jobId = urlParams.get('id');
+
+        if (user) {
+            const navLinks = document.getElementById('navLinks');
+            if (user.role === 'job_seeker') {
+                navLinks.innerHTML = `
+          <a href="/jobseeker-dashboard.html">Dashboard</a>
+          <a href="/jobs.html">Browse Jobs</a>
+          <a href="/applications.html">My Applications</a>
+          <a href="#" onclick="logout()" style="color: var(--danger);">Logout</a>
+        `;
+            } else {
+                navLinks.innerHTML = `
+          <a href="/employer-dashboard.html">Dashboard</a>
+          <a href="/create-job.html">Post a Job</a>
+          <a href="#" onclick="logout()" style="color: var(--danger);">Logout</a>
+        `;
+            }
+        }
+
+        if (!jobId) {
+            showNotification('No job specified', 'error');
+            window.location.href = '/jobs.html';
+        }
+
+        async function loadJobDetails() {
+            try {
+                const response = await jobAPI.getJob(jobId);
+                const job = response.job;
+
+                const container = document.getElementById('jobDetails');
+                container.innerHTML = `
+          <div class="glass-card">
+            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 24px;">
+              <div>
+                <h1 style="margin-bottom: 8px;">${job.title}</h1>
+                <p style="font-size: 18px; font-weight: 600; margin-bottom: 8px;">${job.companyName}</p>
+                <p class="text-muted">${job.location.city}, ${job.location.country}${job.location.remote ? ' (Remote)' : ''}</p>
+              </div>
+              ${user && user.role === 'job_seeker' ? `<button class="btn btn-primary" onclick="openModal('applyModal')">Apply Now</button>` : ''}
+            </div>
+
+            <div style="display: flex; gap: 16px; margin-bottom: 32px; flex-wrap: wrap;">
+              <span class="badge badge-primary">${getJobTypeLabel(job.jobType)}</span>
+              <span class="badge badge-success">${formatSalary(job.salaryRange.min, job.salaryRange.max)}</span>
+              ${job.industry ? `<span class="badge badge-primary">${job.industry}</span>` : ''}
+            </div>
+
+            <div style="margin-bottom: 32px;">
+              <h2 style="margin-bottom: 16px;">Job Description</h2>
+              <p style="line-height: 1.8; white-space: pre-wrap;">${job.description}</p>
+            </div>
+
+            <div style="margin-bottom: 32px;">
+              <h2 style="margin-bottom: 16px;">Qualifications</h2>
+              <p style="line-height: 1.8; white-space: pre-wrap;">${job.qualifications}</p>
+            </div>
+
+            <div style="margin-bottom: 32px;">
+              <h2 style="margin-bottom: 16px;">Responsibilities</h2>
+              <p style="line-height: 1.8; white-space: pre-wrap;">${job.responsibilities}</p>
+            </div>
+
+            ${job.companyDescription ? `
+              <div style="margin-bottom: 32px;">
+                <h2 style="margin-bottom: 16px;">About the Company</h2>
+                <p style="line-height: 1.8;">${job.companyDescription}</p>
+              </div>
+            ` : ''}
+
+            <div style="padding-top: 24px; border-top: 1px solid var(--border-color);">
+              <p style="color: var(--text-muted); font-size: 14px;">Posted on ${formatDate(job.createdAt)}</p>
+            </div>
+          </div>
+        `;
+            } catch (error) {
+                showNotification('Failed to load job details', 'error');
+                console.error(error);
+            }
+        }
+
+        document.getElementById('applyForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const coverLetter = document.getElementById('coverLetter').value;
+            const applyBtn = document.getElementById('applyBtn');
+            const originalText = applyBtn.innerHTML;
+
+            showLoading(applyBtn);
+
+            try {
+                await applicationAPI.apply({ jobId, coverLetter });
+                showNotification('Application submitted successfully!', 'success');
+                closeModal('applyModal');
+                hideLoading(applyBtn, originalText);
+            } catch (error) {
+                hideLoading(applyBtn, originalText);
+                showNotification(error.message || 'Failed to submit application', 'error');
+            }
+        });
+
+        loadJobDetails();
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Applications - Job Portal</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <a href="/" class="logo">JobPortal</a>
+            <nav id="navLinks"></nav>
+        </div>
+    </nav>
+
+    <div class="container" style="padding: 48px 24px;">
+        <h1 id="pageTitle">My Applications</h1>
+
+        <div id="filterBar" style="display: none; margin-bottom: 32px;">
+            <select id="statusFilter" class="input-group" style="max-width: 300px;">
+                <option value="">All Statuses</option>
+                <option value="pending">Pending</option>
+                <option value="reviewed">Reviewed</option>
+                <option value="shortlisted">Shortlisted</option>
+                <option value="accepted">Accepted</option>
+                <option value="rejected">Rejected</option>
+            </select>
+        </div>
+
+        <div id="applicationsContainer">
+            <div style="text-align: center; padding: 48px; color: var(--text-muted);">
+                <span class="loading"></span>
+                <p style="margin-top: 16px;">Loading applications...</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/api.js"></script>
+    <script src="/js/utils.js"></script>
+    <script>
+        const user = checkAuth();
+        const urlParams = new URLSearchParams(window.location.search);
+        const jobId = urlParams.get('jobId');
+
+        const navLinks = document.getElementById('navLinks');
+        let allApplications = [];
+
+        if (user.role === 'job_seeker') {
+            navLinks.innerHTML = `
+        <a href="/jobseeker-dashboard.html">Dashboard</a>
+        <a href="/jobs.html">Browse Jobs</a>
+        <a href="/profile.html">Profile</a>
+        <a href="/applications.html">My Applications</a>
+        <a href="#" onclick="logout()" style="color: var(--danger);">Logout</a>
+      `;
+            loadJobSeekerApplications();
+        } else {
+            navLinks.innerHTML = `
+        <a href="/employer-dashboard.html">Dashboard</a>
+        <a href="/profile.html">Company Profile</a>
+        <a href="/create-job.html">Post a Job</a>
+        <a href="#" onclick="logout()" style="color: var(--danger);">Logout</a>
+      `;
+            if (jobId) {
+                document.getElementById('pageTitle').textContent = 'Job Applications';
+                document.getElementById('filterBar').style.display = 'block';
+                loadJobApplications(jobId);
+            } else {
+                showNotification('No job specified', 'error');
+            }
+        }
+
+        async function loadJobSeekerApplications() {
+            try {
+                const response = await applicationAPI.getMyApplications();
+                allApplications = response.applications || [];
+                renderJobSeekerApplications(allApplications);
+            } catch (error) {
+                showNotification('Failed to load applications', 'error');
+                console.error(error);
+            }
+        }
+
+        function renderJobSeekerApplications(applications) {
+            const container = document.getElementById('applicationsContainer');
+
+            if (applications.length === 0) {
+                container.innerHTML = `
+          <div style="text-align: center; padding: 48px; color: var(--text-muted);">
+            <p style="font-size: 18px; margin-bottom: 16px;">You haven't applied to any jobs yet</p>
+            <a href="/jobs.html" class="btn btn-primary">Browse Jobs</a>
+          </div>
+        `;
+            } else {
+                container.innerHTML = applications.map(app => `
+          <div class="card" style="margin-bottom: 24px;">
+            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 12px;">
+              <div>
+                <h3 style="font-size: 22px; margin-bottom: 4px;">${app.job?.title || 'Job Title'}</h3>
+                <p style="color: var(--text-secondary); font-weight: 600;">${app.job?.companyName || 'Company'}</p>
+              </div>
+              <span class="badge ${getStatusBadgeClass(app.status)}">${app.status}</span>
+            </div>
+            <p style="color: var(--text-muted); font-size: 14px; margin-bottom: 12px;">Applied on ${formatDate(app.appliedAt)}</p>
+            ${app.coverLetter ? `<p style="color: var(--text-secondary); margin-bottom: 12px;"><strong>Cover Letter:</strong> ${truncateText(app.coverLetter, 200)}</p>` : ''}
+            <a href="/job-details.html?id=${app.job?._id}" class="btn btn-outline" style="padding: 8px 16px;">View Job Details</a>
+          </div>
+        `).join('');
+            }
+        }
+
+        async function loadJobApplications(jobId) {
+            try {
+                const response = await applicationAPI.getJobApplications(jobId);
+                allApplications = response.applications || [];
+                renderEmployerApplications(allApplications);
+
+                document.getElementById('statusFilter').addEventListener('change', (e) => {
+                    const status = e.target.value;
+                    if (status) {
+                        const filtered = allApplications.filter(app => app.status === status);
+                        renderEmployerApplications(filtered);
+                    } else {
+                        renderEmployerApplications(allApplications);
+                    }
+                });
+            } catch (error) {
+                showNotification('Failed to load applications', 'error');
+                console.error(error);
+            }
+        }
+
+        function renderEmployerApplications(applications) {
+            const container = document.getElementById('applicationsContainer');
+
+            if (applications.length === 0) {
+                container.innerHTML = `
+          <div style="text-align: center; padding: 48px; color: var(--text-muted);">
+            <p style="font-size: 18px;">No applications found</p>
+          </div>
+        `;
+            } else {
+                container.innerHTML = applications.map(app => `
+          <div class="card" style="margin-bottom: 24px;">
+            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 12px;">
+              <div>
+                <h3 style="font-size: 22px; margin-bottom: 4px;">${app.profile?.firstName || 'Candidate'} ${app.profile?.lastName || ''}</h3>
+                <p style="color: var(--text-secondary);">${app.jobSeeker?.email || 'Email not available'}</p>
+              </div>
+              <span class="badge ${getStatusBadgeClass(app.status)}">${app.status}</span>
+            </div>
+            <p style="color: var(--text-muted); font-size: 14px; margin-bottom: 12px;">Applied on ${formatDate(app.appliedAt)}</p>
+            ${app.profile?.skills?.length ? `<p style="color: var(--text-secondary); margin-bottom: 12px;"><strong>Skills:</strong> ${app.profile.skills.join(', ')}</p>` : ''}
+            ${app.coverLetter ? `<p style="color: var(--text-secondary); margin-bottom: 12px;"><strong>Cover Letter:</strong> ${app.coverLetter}</p>` : ''}
+            ${app.profile?.resumePath ? `<p style="color: var(--text-secondary); margin-bottom: 12px;"><strong>Resume:</strong> ${app.profile.resumePath.split('/').pop()}</p>` : ''}
+            <div style="display: flex; gap: 12px; margin-top: 16px;">
+              <button class="btn btn-primary" style="padding: 8px 16px;" onclick="updateStatus('${app._id}', 'shortlisted')">Shortlist</button>
+              <button class="btn btn-success" style="padding: 8px 16px; background-color: var(--success);" onclick="updateStatus('${app._id}', 'accepted')">Accept</button>
+              <button class="btn btn-danger" style="padding: 8px 16px;" onclick="updateStatus('${app._id}', 'rejected')">Reject</button>
+            </div>
+          </div>
+        `).join('');
+            }
+        }
+
+        async function updateStatus(applicationId, status) {
+            try {
+                await applicationAPI.updateApplicationStatus(applicationId, status);
+                showNotification(`Application ${status} successfully!`, 'success');
+                loadJobApplications(jobId);
+            } catch (error) {
+                showNotification('Failed to update application status', 'error');
+            }
+        }
+    </script>
+</body>
+
+</html>

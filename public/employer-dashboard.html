@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Employer Dashboard - Job Portal</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <a href="/" class="logo">JobPortal</a>
+            <nav>
+                <a href="/employer-dashboard.html">Dashboard</a>
+                <a href="/profile.html">Company Profile</a>
+                <a href="/create-job.html">Post a Job</a>
+                <a href="#" onclick="logout()" style="color: var(--danger);">Logout</a>
+            </nav>
+        </div>
+    </nav>
+
+    <div class="container" style="padding: 48px 24px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 48px;">
+            <div>
+                <h1><span id="companyName">Company</span> Dashboard</h1>
+                <p>Manage your job listings and applications</p>
+            </div>
+            <a href="/create-job.html" class="btn btn-primary">+ Post New Job</a>
+        </div>
+
+        <div class="dashboard-stats" id="stats">
+            <div class="stat-card">
+                <div class="stat-value" id="totalJobs">0</div>
+                <div class="stat-label">Active Jobs</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="totalApplications">0</div>
+                <div class="stat-label">Total Applications</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="pendingReview">0</div>
+                <div class="stat-label">Pending Review</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="shortlisted">0</div>
+                <div class="stat-label">Shortlisted</div>
+            </div>
+        </div>
+
+        <div id="profileAlert"
+            style="display: none; background: rgba(255, 217, 61, 0.1); border: 1px solid var(--warning); border-radius: var(--radius-md); padding: 16px; margin-bottom: 32px;">
+            <p style="color: var(--warning); margin: 0;">⚠️ Complete your company profile to attract top talent. <a
+                    href="/profile.html" style="color: var(--warning); text-decoration: underline;">Complete Profile</a>
+            </p>
+        </div>
+
+        <h2 style="margin-bottom: 24px;">Your Job Listings</h2>
+        <div id="jobListings" class="grid grid-2">
+            <div style="text-align: center; padding: 48px; color: var(--text-muted);">
+                <span class="loading"></span>
+                <p style="margin-top: 16px;">Loading jobs...</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/api.js"></script>
+    <script src="/js/utils.js"></script>
+    <script>
+        const user = checkAuth();
+        if (!user || user.role !== 'employer') {
+            window.location.href = '/login.html';
+        }
+
+        async function loadDashboard() {
+            try {
+                const [meResponse, jobsResponse] = await Promise.all([
+                    authAPI.getMe(),
+                    jobAPI.getEmployerJobs(user.id)
+                ]);
+
+                if (!meResponse.user.hasProfile) {
+                    document.getElementById('profileAlert').style.display = 'block';
+                }
+
+                const jobs = jobsResponse.jobs || [];
+                const activeJobs = jobs.filter(job => job.status === 'active');
+
+                document.getElementById('totalJobs').textContent = activeJobs.length;
+
+                let totalApps = 0;
+                let pendingCount = 0;
+                let shortlistedCount = 0;
+
+                for (const job of activeJobs) {
+                    try {
+                        const appResponse = await applicationAPI.getJobApplications(job._id);
+                        const apps = appResponse.applications || [];
+                        totalApps += apps.length;
+                        pendingCount += apps.filter(app => app.status === 'pending').length;
+                        shortlistedCount += apps.filter(app => app.status === 'shortlisted').length;
+                    } catch (error) {
+                        console.log('Could not load applications for job', job._id);
+                    }
+                }
+
+                document.getElementById('totalApplications').textContent = totalApps;
+                document.getElementById('pendingReview').textContent = pendingCount;
+                document.getElementById('shortlisted').textContent = shortlistedCount;
+
+                const container = document.getElementById('jobListings');
+
+                if (jobs.length === 0) {
+                    container.innerHTML = `
+            <div style="grid-column: 1 / -1; text-align: center; padding: 48px; color: var(--text-muted);">
+              <p style="font-size: 18px; margin-bottom: 16px;">You haven't posted any jobs yet</p>
+              <a href="/create-job.html" class="btn btn-primary">Post Your First Job</a>
+            </div>
+          `;
+                } else {
+                    container.innerHTML = jobs.map(job => `
+            <div class="card">
+              <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 12px;">
+                <h3 style="font-size: 20px;">${job.title}</h3>
+                <span class="badge ${getStatusBadgeClass(job.status)}">${job.status}</span>
+              </div>
+              <p style="color: var(--text-secondary); margin-bottom: 8px;">${job.location.city}, ${job.location.country}</p>
+              <p style="color: var(--text-muted); font-size: 14px; margin-bottom: 16px;">${getJobTypeLabel(job.jobType)} • ${formatSalary(job.salaryRange.min, job.salaryRange.max)}</p>
+              <div style="display: flex; gap: 12px;">
+                <a href="/applications.html?jobId=${job._id}" class="btn btn-primary" style="flex: 1; padding: 8px;">View Applications</a>
+                <a href="/create-job.html?id=${job._id}" class="btn btn-outline" style="flex: 1; padding: 8px;">Edit</a>
+              </div>
+            </div>
+          `).join('');
+                }
+
+                try {
+                    const profileResponse = await profileAPI.getEmployerProfile(user.id);
+                    if (profileResponse.profile) {
+                        document.getElementById('companyName').textContent = profileResponse.profile.companyName;
+                    }
+                } catch (error) {
+                    console.log('Profile not found');
+                }
+
+            } catch (error) {
+                showNotification('Failed to load dashboard', 'error');
+                console.error(error);
+            }
+        }
+
+        loadDashboard();
+    </script>
+</body>
+
+</html>

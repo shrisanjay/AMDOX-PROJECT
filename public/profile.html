@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profile - Job Portal</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <a href="/" class="logo">JobPortal</a>
+            <nav id="navLinks"></nav>
+        </div>
+    </nav>
+
+    <div class="container" style="padding: 48px 24px; max-width: 800px;">
+        <h1>My Profile</h1>
+
+        <div id="jobSeekerProfile" style="display: none;">
+            <form id="jobSeekerForm">
+                <div class="grid grid-2">
+                    <div class="input-group">
+                        <label>First Name *</label>
+                        <input type="text" id="firstName" required>
+                    </div>
+                    <div class="input-group">
+                        <label>Last Name *</label>
+                        <input type="text" id="lastName" required>
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label>Phone *</label>
+                    <input type="tel" id="phone" required>
+                </div>
+                <div class="input-group">
+                    <label>Summary</label>
+                    <textarea id="summary" placeholder="Brief summary about yourself..."></textarea>
+                </div>
+                <div class="input-group">
+                    <label>Skills (comma separated)</label>
+                    <input type="text" id="skills" placeholder="JavaScript, Python, React...">
+                </div>
+                <div class="input-group">
+                    <label>Resume</label>
+                    <input type="file" id="resume" accept=".pdf,.doc,.docx">
+                    <p id="currentResume" style="color: var(--text-muted); font-size: 14px; margin-top: 8px;"></p>
+                </div>
+                <button type="submit" class="btn btn-primary" id="saveBtn">Save Profile</button>
+            </form>
+        </div>
+
+        <div id="employerProfile" style="display: none;">
+            <form id="employerForm">
+                <div class="input-group">
+                    <label>Company Name *</label>
+                    <input type="text" id="companyName" required>
+                </div>
+                <div class="input-group">
+                    <label>Company Description</label>
+                    <textarea id="companyDescription" placeholder="Tell job seekers about your company..."></textarea>
+                </div>
+                <div class="grid grid-2">
+                    <div class="input-group">
+                        <label>Industry *</label>
+                        <input type="text" id="industry" required>
+                    </div>
+                    <div class="input-group">
+                        <label>Company Size *</label>
+                        <select id="companySize" required>
+                            <option value="">Select size</option>
+                            <option value="1-10">1-10 employees</option>
+                            <option value="11-50">11-50 employees</option>
+                            <option value="51-200">51-200 employees</option>
+                            <option value="201-500">201-500 employees</option>
+                            <option value="501-1000">501-1000 employees</option>
+                            <option value="1000+">1000+ employees</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="grid grid-2">
+                    <div class="input-group">
+                        <label>Phone *</label>
+                        <input type="tel" id="empPhone" required>
+                    </div>
+                    <div class="input-group">
+                        <label>Website</label>
+                        <input type="url" id="website" placeholder="https://example.com">
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary" id="empSaveBtn">Save Profile</button>
+            </form>
+        </div>
+    </div>
+
+    <script src="/js/api.js"></script>
+    <script src="/js/utils.js"></script>
+    <script>
+        const user = checkAuth();
+
+        const navLinks = document.getElementById('navLinks');
+        if (user.role === 'job_seeker') {
+            navLinks.innerHTML = `
+        <a href="/jobseeker-dashboard.html">Dashboard</a>
+        <a href="/jobs.html">Browse Jobs</a>
+        <a href="/profile.html">Profile</a>
+        <a href="#" onclick="logout()" style="color: var(--danger);">Logout</a>
+      `;
+            document.getElementById('jobSeekerProfile').style.display = 'block';
+            loadJobSeekerProfile();
+        } else {
+            navLinks.innerHTML = `
+        <a href="/employer-dashboard.html">Dashboard</a>
+        <a href="/profile.html">Company Profile</a>
+        <a href="/create-job.html">Post a Job</a>
+        <a href="#" onclick="logout()" style="color: var(--danger);">Logout</a>
+      `;
+            document.getElementById('employerProfile').style.display = 'block';
+            loadEmployerProfile();
+        }
+
+        async function loadJobSeekerProfile() {
+            try {
+                const response = await profileAPI.getJobSeekerProfile(user.id);
+                const profile = response.profile;
+
+                document.getElementById('firstName').value = profile.firstName || '';
+                document.getElementById('lastName').value = profile.lastName || '';
+                document.getElementById('phone').value = profile.phone || '';
+                document.getElementById('summary').value = profile.summary || '';
+                document.getElementById('skills').value = profile.skills?.join(', ') || '';
+
+                if (profile.resumePath) {
+                    document.getElementById('currentResume').textContent = `Current resume: ${profile.resumePath.split('/').pop()}`;
+                }
+            } catch (error) {
+                console.log('No profile found, creating new one');
+            }
+        }
+
+        async function loadEmployerProfile() {
+            try {
+                const response = await profileAPI.getEmployerProfile(user.id);
+                const profile = response.profile;
+
+                document.getElementById('companyName').value = profile.companyName || '';
+                document.getElementById('companyDescription').value = profile.companyDescription || '';
+                document.getElementById('industry').value = profile.industry || '';
+                document.getElementById('companySize').value = profile.companySize || '';
+                document.getElementById('empPhone').value = profile.phone || '';
+                document.getElementById('website').value = profile.website || '';
+            } catch (error) {
+                console.log('No profile found, creating new one');
+            }
+        }
+
+        document.getElementById('jobSeekerForm')?.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const saveBtn = document.getElementById('saveBtn');
+            const originalText = saveBtn.innerHTML;
+            showLoading(saveBtn);
+
+            try {
+                const profileData = {
+                    firstName: document.getElementById('firstName').value,
+                    lastName: document.getElementById('lastName').value,
+                    phone: document.getElementById('phone').value,
+                    summary: document.getElementById('summary').value,
+                    skills: document.getElementById('skills').value.split(',').map(s => s.trim()).filter(s => s)
+                };
+
+                await profileAPI.updateJobSeekerProfile(profileData);
+
+                const resumeFile = document.getElementById('resume').files[0];
+                if (resumeFile) {
+                    const formData = new FormData();
+                    formData.append('resume', resumeFile);
+                    await profileAPI.uploadResume(formData);
+                }
+
+                showNotification('Profile saved successfully!', 'success');
+                hideLoading(saveBtn, originalText);
+            } catch (error) {
+                hideLoading(saveBtn, originalText);
+                showNotification(error.message || 'Failed to save profile', 'error');
+            }
+        });
+
+        document.getElementById('employerForm')?.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const saveBtn = document.getElementById('empSaveBtn');
+            const originalText = saveBtn.innerHTML;
+            showLoading(saveBtn);
+
+            try {
+                const profileData = {
+                    companyName: document.getElementById('companyName').value,
+                    companyDescription: document.getElementById('companyDescription').value,
+                    industry: document.getElementById('industry').value,
+                    companySize: document.getElementById('companySize').value,
+                    phone: document.getElementById('empPhone').value,
+                    website: document.getElementById('website').value
+                };
+
+                await profileAPI.updateEmployerProfile(profileData);
+                showNotification('Profile saved successfully!', 'success');
+                hideLoading(saveBtn, originalText);
+            } catch (error) {
+                hideLoading(saveBtn, originalText);
+                showNotification(error.message || 'Failed to save profile', 'error');
+            }
+        });
+    </script>
+</body>
+
+</html>

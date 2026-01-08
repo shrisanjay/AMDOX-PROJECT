@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Job Seeker Dashboard - Job Portal</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <a href="/" class="logo">JobPortal</a>
+            <nav>
+                <a href="/jobseeker-dashboard.html">Dashboard</a>
+                <a href="/jobs.html">Browse Jobs</a>
+                <a href="/profile.html">Profile</a>
+                <a href="/applications.html">My Applications</a>
+                <a href="#" onclick="logout()" style="color: var(--danger);">Logout</a>
+            </nav>
+        </div>
+    </nav>
+
+    <div class="container" style="padding: 48px 24px;">
+        <h1>Welcome back, <span id="userName">Job Seeker</span>!</h1>
+        <p style="color: var(--text-secondary); margin-bottom: 48px;">Here's your job search overview</p>
+
+        <div class="dashboard-stats" id="stats">
+            <div class="stat-card">
+                <div class="stat-value" id="totalApplications">0</div>
+                <div class="stat-label">Total Applications</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="pendingApplications">0</div>
+                <div class="stat-label">Pending</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="shortlistedApplications">0</div>
+                <div class="stat-label">Shortlisted</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="acceptedApplications">0</div>
+                <div class="stat-label">Accepted</div>
+            </div>
+        </div>
+
+        <div id="profileAlert"
+            style="display: none; background: rgba(255, 217, 61, 0.1); border: 1px solid var(--warning); border-radius: var(--radius-md); padding: 16px; margin-bottom: 32px;">
+            <p style="color: var(--warning); margin: 0;">⚠️ Complete your profile to increase your chances of getting
+                hired. <a href="/profile.html" style="color: var(--warning); text-decoration: underline;">Complete
+                    Profile</a></p>
+        </div>
+
+        <h2 style="margin-bottom: 24px;">Recent Applications</h2>
+        <div id="recentApplications" class="grid grid-2">
+            <div style="text-align: center; padding: 48px; color: var(--text-muted);">
+                <span class="loading"></span>
+                <p style="margin-top: 16px;">Loading applications...</p>
+            </div>
+        </div>
+
+        <div style="text-align: center; margin-top: 32px;">
+            <a href="/jobs.html" class="btn btn-primary">Browse All Jobs</a>
+            <a href="/applications.html" class="btn btn-outline" style="margin-left: 16px;">View All Applications</a>
+        </div>
+    </div>
+
+    <script src="/js/api.js"></script>
+    <script src="/js/utils.js"></script>
+    <script>
+        const user = checkAuth();
+        if (!user || user.role !== 'job_seeker') {
+            window.location.href = '/login.html';
+        }
+
+        async function loadDashboard() {
+            try {
+                const [meResponse, applicationsResponse] = await Promise.all([
+                    authAPI.getMe(),
+                    applicationAPI.getMyApplications()
+                ]);
+
+                if (!meResponse.user.hasProfile) {
+                    document.getElementById('profileAlert').style.display = 'block';
+                }
+
+                const applications = applicationsResponse.applications || [];
+
+                document.getElementById('totalApplications').textContent = applications.length;
+                document.getElementById('pendingApplications').textContent =
+                    applications.filter(app => app.status === 'pending').length;
+                document.getElementById('shortlistedApplications').textContent =
+                    applications.filter(app => app.status === 'shortlisted').length;
+                document.getElementById('acceptedApplications').textContent =
+                    applications.filter(app => app.status === 'accepted').length;
+
+                const recentApps = applications.slice(0, 4);
+                const container = document.getElementById('recentApplications');
+
+                if (recentApps.length === 0) {
+                    container.innerHTML = `
+            <div style="grid-column: 1 / -1; text-align: center; padding: 48px; color: var(--text-muted);">
+              <p style="font-size: 18px; margin-bottom: 16px;">You haven't applied to any jobs yet</p>
+              <a href="/jobs.html" class="btn btn-primary">Start Browsing Jobs</a>
+            </div>
+          `;
+                } else {
+                    container.innerHTML = recentApps.map(app => `
+            <div class="card">
+              <h3 style="font-size: 20px; margin-bottom: 8px;">${app.job?.title || 'Job Title'}</h3>
+              <p style="color: var(--text-secondary); margin-bottom: 12px;">${app.job?.companyName || 'Company'}</p>
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 16px;">
+                <span class="badge ${getStatusBadgeClass(app.status)}">${app.status}</span>
+                <span style="color: var(--text-muted); font-size: 14px;">Applied ${formatDate(app.appliedAt)}</span>
+              </div>
+            </div>
+          `).join('');
+                }
+
+                try {
+                    const profileResponse = await profileAPI.getJobSeekerProfile(user.id);
+                    if (profileResponse.profile) {
+                        document.getElementById('userName').textContent =
+                            `${profileResponse.profile.firstName} ${profileResponse.profile.lastName}`;
+                    }
+                } catch (error) {
+                    console.log('Profile not found');
+                }
+
+            } catch (error) {
+                showNotification('Failed to load dashboard', 'error');
+                console.error(error);
+            }
+        }
+
+        loadDashboard();
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - Upload Certificates</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+
+<body>
+    <nav class="navbar">
+        <div class="logo">Job & Cert Portal</div>
+        <div class="nav-links">
+            <a href="index.html">Home</a>
+            <a href="#" onclick="logout()">Logout</a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="dashboard-header">
+            <h1>Admin Dashboard</h1>
+            <p>Manage Certificates and Student Data</p>
+        </div>
+
+        <div class="card">
+            <h2>Bulk Upload Certificates</h2>
+            <p>Upload an Excel file (.xlsx) containing student data.</p>
+            <p>Required columns: <strong>studentName, studentEmail, certificateID, courseName</strong></p>
+
+            <form id="uploadForm">
+                <div class="form-group">
+                    <label for="file">Select Excel File</label>
+                    <input type="file" id="file" name="file" accept=".xlsx" required>
+                </div>
+                <button type="submit" class="btn btn-primary">Upload Data</button>
+            </form>
+            <div id="message" class="message"></div>
+        </div>
+    </div>
+
+    <script>
+        // Check if admin is logged in
+        const token = localStorage.getItem('token');
+        const role = localStorage.getItem('role');
+
+        if (!token || role !== 'admin') {
+            window.location.href = 'login.html';
+        }
+
+        function logout() {
+            localStorage.removeItem('token');
+            localStorage.removeItem('role');
+            localStorage.removeItem('user');
+            window.location.href = 'index.html';
+        }
+
+        document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData();
+            const fileInput = document.getElementById('file');
+            formData.append('file', fileInput.files[0]);
+
+            const messageDiv = document.getElementById('message');
+            messageDiv.textContent = 'Uploading...';
+            messageDiv.className = 'message';
+
+            try {
+                const res = await fetch('/api/certificates/upload', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: formData
+                });
+
+                const data = await res.json();
+
+                if (data.success) {
+                    messageDiv.textContent = data.message;
+                    messageDiv.classList.add('success');
+                    messageDiv.style.color = 'green';
+                    fileInput.value = ''; // Reset file input
+                } else {
+                    messageDiv.textContent = data.message || 'Upload failed';
+                    messageDiv.classList.add('error');
+                    messageDiv.style.color = 'red';
+                    if (data.errors && data.errors.length > 0) {
+                        messageDiv.innerHTML += '<br>' + data.errors.join('<br>');
+                    }
+                }
+            } catch (err) {
+                console.error(err);
+                messageDiv.textContent = 'An error occurred';
+                messageDiv.style.color = 'red';
+            }
+        });
+    </script>
+</body>
+
+</html>
